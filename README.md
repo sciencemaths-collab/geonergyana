@@ -1,3 +1,5 @@
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sciencemaths-collab/geonergyana/blob/main/run_colab.ipynb)
+
 # geonergyana
 Initial geometric profile and binding energy estimate of a receptor-peptide complex.
 
