@@ -1,14 +1,14 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sciencemaths-collab/geonergyana/blob/main/run_colab.ipynb)
 
 # geonergyana
-Initial geometric profile and binding energy estimate of a receptor-peptide complex.
 
+Initial geometric profile and binding energy estimate of a receptor-peptide complex.
 
 **Analyze peptide docking to receptor surface spheres**, focusing on hydrophobic interaction geometry and estimating binding ΔG via single‑trajectory gas‑phase sampling with OpenMM.
 
 ---
 
-##  Key Features
+## 🚀 Key Features
 
 - **Geometric Analysis**  
   - Occupancy fraction (Frac)  
@@ -29,33 +29,29 @@ Initial geometric profile and binding energy estimate of a receptor-peptide comp
 
 ---
 
-<<<<<<< HEAD
-## ⚙ Installation
-=======
-##  Installation
->>>>>>> 3f8fb30 (Add Run in Colab badge)
+## ⚙️ Installation
 
-1. **Clone the repo**
+1. **Clone the repo**  
    ```bash
    git clone https://github.com/sciencemaths-collab/geonergyana.git
    cd geonergyana
-   !pip install git+https://github.com/openmm/pdbfixer.git
    ```
-2. **Install dependencies**
+2. **Install dependencies**  
    ```bash
    pip install -r requirements.txt
+   pip install git+https://github.com/openmm/pdbfixer.git
    ```
-3. **Place your input files**:
+3. **Place your input files**:  
    - A `.sph` file defining surface spheres  
    - A cleaned receptor PDB  
    - A directory of pose PDBs
 
 ---
 
-##  Usage
+## 🎯 Usage
 
 ```bash
-geonergy_ana \
+geonergyana \
   --sph   path/to/fg_surface.sph \
   --rec   path/to/receptor.pdb \
   --ligdir path/to/poses/ \
@@ -70,7 +66,7 @@ geonergy_ana \
   --verbose
 ```
 
-###  Arguments
+### 🔎 Arguments
 
 | Flag                | Type      | Default | Description                                                       |
 |---------------------|-----------|---------|-------------------------------------------------------------------|
@@ -80,7 +76,7 @@ geonergy_ana \
 | `--outdir`          | `dir`     | ―       | Output folder for CSV, plots, and logs                            |
 | `--frac_thresh`     | `float`   | `0.5`   | Minimum Frac to keep a pose                                       |
 | `--depth_thresh`    | `float`   | `0.3`   | Minimum Depth to keep a pose                                      |
-| `--vicinity_radius` | `float`   | `2.0`   | Radius (Å) for centroid‐to‐best‐pose distance logging             |
+| `--vicinity_radius` | `float`   | `2.0`   | Radius (Å) for centroid‑to‑best‑pose distance logging             |
 | `--keep_h`          | `flag`    | `off`   | Include hydrogens in geometric metrics                            |
 | `--nsteps`          | `int`     | `2000`  | MD sampling steps for ΔG estimation                               |
 | `--dt`              | `float`   | `0.001` | Integrator timestep (ps)                                          |
@@ -89,7 +85,7 @@ geonergy_ana \
 
 ---
 
-##  Outputs
+## 📂 Outputs
 
 - **`results/kept_ligs.csv`**: Summary of all kept poses with metrics and ΔG   
 - **Plots**: `A_frac_depth.png`, `B_uniformscore_bar.png`, `C_score_vs_wscore.png`, `D_zuniform_hist.png`, `E_score_vs_dG.png`  
@@ -98,8 +94,3 @@ geonergy_ana \
 ---
 
 *For questions or issues, please open an issue on GitHub.*
-
-<<<<<<< HEAD
-
-=======
->>>>>>> 3f8fb30 (Add Run in Colab badge)
