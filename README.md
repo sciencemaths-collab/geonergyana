@@ -39,6 +39,7 @@ Initial geometric profile and binding energy estimate of a receptor-peptide comp
    ```bash
    git clone https://github.com/sciencemaths-collab/geonergyana.git
    cd geonergyana
+   !pip install git+https://github.com/openmm/pdbfixer.git
    ```
 2. **Install dependencies**
    ```bash
