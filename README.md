@@ -3,6 +3,7 @@
 # geonergyana
 Initial geometric profile and binding energy estimate of a receptor-peptide complex.
 
+
 **Analyze peptide docking to receptor surface spheres**, focusing on hydrophobic interaction geometry and estimating binding ΔG via single‑trajectory gas‑phase sampling with OpenMM.
 
 ---
@@ -28,7 +29,11 @@ Initial geometric profile and binding energy estimate of a receptor-peptide comp
 
 ---
 
+<<<<<<< HEAD
 ## ⚙ Installation
+=======
+##  Installation
+>>>>>>> 3f8fb30 (Add Run in Colab badge)
 
 1. **Clone the repo**
    ```bash
@@ -93,4 +98,7 @@ geonergy_ana \
 
 *For questions or issues, please open an issue on GitHub.*
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3f8fb30 (Add Run in Colab badge)
