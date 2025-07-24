@@ -2,7 +2,7 @@
 """
 geonergyana.py
 
-Analyze peptide docking to receptor spheres, focusing on
+Analyze peptide p12 docking to fibrinogen spheres, focusing on
 hydrophobic engagement across all surface spheres, and estimate
 binding ΔG for each pose via single-trajectory gas-phase sampling.
 
@@ -77,10 +77,10 @@ def sample_energies(topology, positions, nsteps, dt, interval):
     sim.context.setVelocitiesToTemperature(TEMPERATURE)
     sim.step(EQUIL_STEPS)
     energies = []
-        for step in range(1, nsteps+1):
+    for step in range(1, nsteps+1):
         sim.step(1)
         if step % interval == 0:
-            # fetch potential energy in one line to avoid indentation errors
+            # fetch potential energy in one line to avoid indent errors
             e = sim.context.getState(getEnergy=True)\
                    .getPotentialEnergy()\
                    .value_in_unit(unit.kilocalories_per_mole)
@@ -104,7 +104,7 @@ def compute_binding_deltaG(rec_pdb, lig_pdb, nsteps, dt, interval, verbose=False
                      + E_l.var(ddof=1)/len(E_l))
     return float(deltaG), float(stderr)
 
-# ─── SPHERE-BASED METRICS HELPERS ─────────────────────────────────────────
+# ─── SPHERE METRICS HELPERS ────────────────────────────────────────────────
 def to_label(n):
     return chr(ord('A') + n - 1) if n <= 26 else f"Z{n-26}"
 
@@ -134,7 +134,7 @@ def read_coords(path, keep_h=False):
 
 def compute_metrics(pts, elems, centers, radii):
     N = len(pts)
-    if N==0 or centers.size==0:
+    if N == 0 or centers.size == 0:
         return (0.0,) * 9
     d2     = np.sum((pts[:,None] - centers[None,:,:])**2, axis=2)
     inside = d2 <= radii[None]**2
@@ -180,8 +180,8 @@ if __name__ == '__main__':
     kept = []
     for pdb in pdbs:
         pts, elems = read_coords(pdb, args.keep_h)
-        cent = pts.mean(axis=0) if pts.size else np.zeros(3)
-        m    = compute_metrics(pts, elems, centers, radii)
+        cent       = pts.mean(axis=0) if pts.size else np.zeros(3)
+        m          = compute_metrics(pts, elems, centers, radii)
 
         # Filter by thresholds
         if m[0] < args.frac_thresh or m[1] < args.depth_thresh:
@@ -253,18 +253,18 @@ if __name__ == '__main__':
     fig.tight_layout()
     fig.savefig(os.path.join(args.outdir, 'A_frac_depth.png'))
 
-    # Plot B
+        # Plot B
     fig, ax = plt.subplots(figsize=(8,4))
     ax.bar([e[0] for e in final], [e[10] for e in final], edgecolor='k')
     ax.set(xlabel='Pose', ylabel='UniformScore', title='UniformScore per Pose')
-    fig.tight\layout()
+    fig.tight_layout()
     fig.savefig(os.path.join(args.outdir, 'B_uniformscore_bar.png'))
 
     # Plot C
-    fig, ax = plt.subplots(figsize=(6,6))
     scores = np.array([e[4] for e in final])
     wscores = np.array([e[7] for e in final])
     r_val, _ = pearsonr(scores, wscores)
+    fig, ax = plt.subplots(figsize=(6,6))
     ax.scatter(scores, wscores, edgecolors='k')
     ax.plot([scores.min(), scores.max()], [scores.min(), scores.max()], '--')
     ax.set(xlabel='Score', ylabel='WScore', title=f'Score vs WScore (r={r_val:.2f})')
@@ -272,28 +272,32 @@ if __name__ == '__main__':
     fig.savefig(os.path.join(args.outdir, 'C_score_vs_wscore.png'))
 
     # Plot D
+    zlabels = np.array([e[11] for e in final])
     fig, ax = plt.subplots(figsize=(6,4))
-    ax.hist([e[11] for e in final], bins=10, edgecolor='k')
+    ax.hist(zlabels, bins=10, edgecolor='k')
     ax.set(xlabel='ZUniform', ylabel='Count', title='UniformScore Z-Score Distribution')
     fig.tight_layout()
     fig.savefig(os.path.join(args.outdir, 'D_zuniform_hist.png'))
 
     # Plot E
-    fig, ax = plt.subplots(figsize=(6,6))
     hydros = np.array([e[8] for e in final])
-    scatter = ax.scatter(scores, -np.array([e[12] for e in final]), s=hydros*200, c=[e[11] for e in final], cmap='viridis', edgecolors='k')
+    fig, ax = plt.subplots(figsize=(6,6))
+    sc2 = ax.scatter(scores, -np.array([e[12] for e in final]), s=hydros*200, c=zlabels, cmap='viridis', edgecolors='k')
     ax.scatter(best[4], -best[12], c='red', s=150, marker='*', label='Best')
     ax.set(xlabel='Score', ylabel='-ΔG (kcal/mol)', title='Score vs Binding Energy')
-    fig.colorbar(scatter, ax=ax, label='ZUniform')
+    fig.colorbar(sc2, ax=ax, label='ZUniform')
     fig.tight_layout()
     fig.savefig(os.path.join(args.outdir, 'E_score_vs_dG.png'))
 
     # Vicinity distances
     with open(os.path.join(vdir, 'vicinity_ligs.log'), 'w') as vf:
-        vf.write('Idx,Name,Distance\n')
-        for lbl,name,*_,cent in final:
+        vf.write('Idx,Name,Distance
+')
+        for lbl, name, *_ , cent in final:
             dist = np.linalg.norm(np.array(cent) - best_cent)
-            vf.write(f"{lbl},{name},{dist:.3f}\n")
-        vf.write(f"Total,{len(final)}\n")
+            vf.write(f"{lbl},{name},{dist:.3f}
+")
+        vf.write(f"Total,{len(final)}
+")
 
     print(f"Done: {len(kept)} kept; best={best[0]} ZU={best[11]:.2f}")
