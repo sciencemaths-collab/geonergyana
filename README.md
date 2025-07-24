@@ -1,6 +1,6 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sciencemaths-collab/geonergyana/blob/main/run_colab.ipynb)
 
-# geonergy
+# geonergyana
 
 Initial geometric profiling, gas‑phase binding energy estimates, and ML analysis for receptor–peptide complexes.
 
@@ -75,7 +75,7 @@ Initial geometric profiling, gas‑phase binding energy estimates, and ML analys
 ## 🎯 Usage
 
 ```bash
-python enegeo_refined4_gas_ml.py \
+python geonergyana.py \
   --sph    path/to/fg_surface.sph \
   --rec    path/to/receptor.pdb \
   --ligdir path/to/poses/ \
