@@ -41,18 +41,27 @@ try:
 except NameError:
     SCRIPT_DIR = os.getcwd()
 
+# also check for a "geonergyana" subfolder under cwd (e.g. /content/geonergyana in Colab)
+search_dirs = [SCRIPT_DIR, os.getcwd(), os.path.join(os.getcwd(), 'geonergyana')]
+
 _required_ff = ['amber14-all.xml', 'gaff.xml']
 FF_FILES = []
+_missing = []
 for fn in _required_ff:
-    found = False
-    for d in (SCRIPT_DIR, os.getcwd()):
+    for d in search_dirs:
         path = os.path.join(d, fn)
         if os.path.isfile(path):
             FF_FILES.append(path)
-            found = True
             break
-    if not found:
-        raise FileNotFoundError(f"Force field file '{fn}' not found in {SCRIPT_DIR} or {os.getcwd()}")
+    else:
+        _missing.append(fn)
+
+if _missing:
+    raise FileNotFoundError(
+        "Could not find force field XML(s): "
+        + ", ".join(_missing)
+        + f"\nSearched dirs: {search_dirs}"
+    )
 
 # ─── SIMULATION PARAMETERS ──────────────────────────────────────────────────
 TEMPERATURE       = 300 * unit.kelvin
