@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-geonergy.py
+geonergyana.py
 
 Full pipeline (gas‐phase):
   1) Monte Carlo burial sampling (M rotations)
