@@ -36,7 +36,10 @@ from openmm.app import Modeller, ForceField, Simulation, NoCutoff, HBonds
 from openmm import unit, LangevinIntegrator, OpenMMException
 
 # ─── PARAMETERS ──────────────────────────────────────────────────────────
-FF_FILES         = ['amber14-all.xml', 'gaff.xml']
+# Load force‑field XMLs from the same directory as this script
+SCRIPT_DIR    = os.path.dirname(os.path.realpath(__file__))
+FF_FILES      = [os.path.join(SCRIPT_DIR, fn) for fn in ('amber14-all.xml','gaff.xml')]
+
 TEMPERATURE      = 300 * unit.kelvin
 FRICTION         = 1.0 / unit.picosecond
 DEFAULT_NSTEPS   = 2000
@@ -60,14 +63,12 @@ def fix_and_protonate(pdb_path, verbose=False):
         print(f"  • PDBFixer applied to {os.path.basename(pdb_path)}")
     return fixer.topology, fixer.positions
 
-
 def build_gas_phase_system(topology):
     ff = ForceField(*FF_FILES)
     return ff.createSystem(topology,
                            nonbondedMethod=NoCutoff,
                            constraints=HBonds,
                            rigidWater=True)
-
 
 def sample_energies(topology, positions, nsteps, dt, interval):
     integrator = LangevinIntegrator(TEMPERATURE, FRICTION,
@@ -87,7 +88,6 @@ def sample_energies(topology, positions, nsteps, dt, interval):
                    .value_in_unit(unit.kilocalories_per_mole)
             energies.append(e)
     return np.array(energies, dtype=float)
-
 
 def compute_binding_deltaG(rec_pdb, lig_pdb, nsteps, dt, interval, verbose=False):
     topo_r, pos_r = fix_and_protonate(rec_pdb, verbose)
@@ -110,7 +110,6 @@ def compute_binding_deltaG(rec_pdb, lig_pdb, nsteps, dt, interval, verbose=False
 def to_label(n):
     return chr(ord('A') + n - 1) if n <= 26 else f"Z{n-26}"
 
-
 def parse_sph(path):
     centers, radii = [], []
     with open(path) as f:
@@ -120,7 +119,6 @@ def parse_sph(path):
                 x, y, z = map(float, parts[1:4]); r = float(parts[4])
                 centers.append((x, y, z)); radii.append(r)
     return np.array(centers), np.array(radii)
-
 
 def read_coords(path, keep_h=False):
     pts, elems = [], []
@@ -137,7 +135,6 @@ def read_coords(path, keep_h=False):
             except ValueError:
                 continue
     return np.array(pts), elems
-
 
 def compute_metrics(pts, elems, centers, radii):
     N = len(pts)
@@ -218,7 +215,8 @@ if __name__ == '__main__':
 
         lbl = to_label(len(kept) + 1)
         if args.verbose:
-            print(f"{lbl}: {os.path.basename(pdb)} hydro_frac={m[6]:.3f} uniform_score={m[8]:.3f} ΔG={dG:.2f}±{se:.2f}")
+            print(f"{lbl}: {os.path.basename(pdb)} hydro_frac={m[6]:.3f} uniform_score={m[8]:.
+5f} ΔG={dG:.2f}±{se:.2f}")
         shutil.copy(pdb, args.outdir)
         kept.append((lbl, os.path.basename(pdb), *m, dG, se, cent))
 
@@ -258,8 +256,7 @@ if __name__ == '__main__':
         ax.annotate(lbl, (x, y), textcoords='offset points', xytext=(5,5), fontsize=9)
     ax.set(xlabel='Frac', ylabel='Depth', title='Frac vs Depth')
     fig.colorbar(sc, ax=ax, label='ZUniform')
-    ax.legend(); fig.tight_layout();
-    fig.savefig(os.path.join(args.outdir, 'A_frac_depth.png'))
+    ax.legend(); fig.tight_layout(); fig.savefig(os.path.join(args.outdir, 'A_frac_depth.png'))
 
     # Plot B
     fig, ax = plt.subplots(figsize=(8,4))
