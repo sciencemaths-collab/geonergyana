@@ -77,11 +77,12 @@ def sample_energies(topology, positions, nsteps, dt, interval):
     sim.context.setVelocitiesToTemperature(TEMPERATURE)
     sim.step(EQUIL_STEPS)
     energies = []
-    for step in range(1, nsteps+1):
+        for step in range(1, nsteps+1):
         sim.step(1)
         if step % interval == 0:
-            e = sim.context.getState(getEnergy=True)
-                   .getPotentialEnergy()
+            # fetch potential energy in one line to avoid indentation errors
+            e = sim.context.getState(getEnergy=True)\
+                   .getPotentialEnergy()\
                    .value_in_unit(unit.kilocalories_per_mole)
             energies.append(e)
     return np.array(energies, dtype=float)
