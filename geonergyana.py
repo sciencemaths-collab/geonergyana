@@ -240,11 +240,11 @@ if __name__ == '__main__':
     # CSV
     out_csv = os.path.join(args.outdir, 'kept_ligs.csv')
     with open(out_csv, 'w') as f:
-        headers = ['Idx','Name','Frac','Depth','Score','WFrac','WDepth','WScore',
+        headers = ['Type','Idx','Name','Frac','Depth','Score','WFrac','WDepth','WScore',
                    'HydroFrac','Uniformity','UniformScore','ZUniform','ΔG_kcal_per_mol','StdErr']
         f.write(','.join(headers) + "\n")
         for e in final:
-            f.write(','.join(map(str, e[:14])) + "\n")
+            f.write('Ligand,' + ','.join(map(str, e[:14])) + "\n")
         f.write('Best,' + ','.join(map(str, best[:14])) + "\n")
 
     # Plot A
