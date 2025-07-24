@@ -45,7 +45,7 @@ DEFAULT_INTERVAL = 100
 MINIM_STEPS      = 5000
 EQUIL_STEPS      = 10000
 
-# ─── van der Waals radii ─────────────────────────────────────────────────
+# ─── van der Waals radii (Å) ──────────────────────────────────────────────
 VdW_R = {'H':1.20,'C':1.70,'N':1.55,'O':1.52,'S':1.80,
          'P':1.80,'F':1.47,'Cl':1.75,'Br':1.85,'I':1.98}
 
@@ -80,9 +80,9 @@ def sample_energies(topology, positions, nsteps, dt, interval):
     for step in range(1, nsteps+1):
         sim.step(1)
         if step % interval == 0:
-            # fetch potential energy in one line to avoid indent errors
-            e = sim.context.getState(getEnergy=True)\
-                   .getPotentialEnergy()\
+            # fetch potential energy in one logical line
+            e = sim.context.getState(getEnergy=True) \
+                   .getPotentialEnergy() \
                    .value_in_unit(unit.kilocalories_per_mole)
             energies.append(e)
     return np.array(energies, dtype=float)
@@ -114,85 +114,83 @@ def parse_sph(path):
         for l in f:
             parts = l.split()
             if len(parts) >= 5 and parts[0].isdigit():
-                x, y, z = map(float, parts[1:4]); r = float(parts[4])
-                centers.append((x, y, z)); radii.append(r)
+                x,y,z = map(float, parts[1:4])
+                r     = float(parts[4])
+                centers.append((x,y,z)); radii.append(r)
     return np.array(centers), np.array(radii)
 
 def read_coords(path, keep_h=False):
     pts, elems = [], []
     with open(path) as f:
         for l in f:
-            if not l.startswith(('ATOM  ', 'HETATM')): continue
+            if not l.startswith(('ATOM  ','HETATM')):
+                continue
             e = l[76:78].strip().capitalize()
-            if not keep_h and e == 'H': continue
+            if not keep_h and e=='H': continue
             try:
-                x, y, z = map(float, (l[30:38], l[38:46], l[46:54]))
-                pts.append((x, y, z)); elems.append(e)
+                x,y,z = map(float, (l[30:38], l[38:46], l[46:54]))
+                pts.append((x,y,z)); elems.append(e)
             except ValueError:
                 continue
     return np.array(pts), elems
 
 def compute_metrics(pts, elems, centers, radii):
     N = len(pts)
-    if N == 0 or centers.size == 0:
-        return (0.0,) * 9
+    if N==0 or centers.size==0:
+        return (0.0,)*9
     d2     = np.sum((pts[:,None] - centers[None,:,:])**2, axis=2)
     inside = d2 <= radii[None]**2
-    frac   = float(inside.sum(0).max() / N)
-    depths = np.clip((radii[None] - np.sqrt(d2)) / radii[None], 0, 1)
+    frac   = float(inside.sum(0).max()/N)
+    depths = np.clip((radii[None] - np.sqrt(d2))/radii[None],0,1)
     depth  = float(depths.max(1).mean())
     score  = frac * depth
     w      = np.array([VdW_R.get(e,1.5)**3 for e in elems])
-    wfrac  = float((inside * w[:,None]).sum(0).max() / w.sum())
-    wdepth = float((depths * w[:,None]).max(1).sum() / w.sum())
+    wfrac  = float((inside*w[:,None]).sum(0).max() / w.sum())
+    wdepth = float((depths*w[:,None]).max(1).sum() / w.sum())
     wscore = wfrac * wdepth
-    bi      = int(inside.sum(0).argmax())
-    C       = np.array([e=='C' for e in elems])
-    hydro   = float((inside[:,bi] & C).sum() / max(C.sum(),1))
-    atom_d  = depths[:,bi]
-    uniform = float(max(0.0, 1 - atom_d.std()))
-    uscore  = score * uniform
+    bi     = int(inside.sum(0).argmax())
+    C      = np.array([e=='C' for e in elems])
+    hydro  = float((inside[:,bi]&C).sum()/max(C.sum(),1))
+    atom_d = depths[:,bi]
+    uniform= float(max(0.0,1-atom_d.std()))
+    uscore = score * uniform
     return frac, depth, score, wfrac, wdepth, wscore, hydro, uniform, uscore
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────
-if __name__ == '__main__':
+if __name__=='__main__':
     parser = argparse.ArgumentParser(__doc__)
-    parser.add_argument('--sph', required=True)
-    parser.add_argument('--rec', required=True)
-    parser.add_argument('--ligdir', required=True)
-    parser.add_argument('--outdir', required=True)
-    parser.add_argument('--frac_thresh', type=float, default=0.5)
-    parser.add_argument('--depth_thresh', type=float, default=0.3)
-    parser.add_argument('--vicinity_radius', type=float, default=2.0)
-    parser.add_argument('--keep_h', action='store_true')
-    parser.add_argument('--nsteps', type=int, default=DEFAULT_NSTEPS)
-    parser.add_argument('--dt', type=float, default=DEFAULT_DT)
-    parser.add_argument('--interval', type=int, default=DEFAULT_INTERVAL)
-    parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('--sph',           required=True)
+    parser.add_argument('--rec',           required=True)
+    parser.add_argument('--ligdir',        required=True)
+    parser.add_argument('--outdir',        required=True)
+    parser.add_argument('--frac_thresh',   type=float, default=0.5)
+    parser.add_argument('--depth_thresh',  type=float, default=0.3)
+    parser.add_argument('--vicinity_radius',type=float, default=2.0)
+    parser.add_argument('--keep_h',        action='store_true')
+    parser.add_argument('--nsteps',        type=int,   default=DEFAULT_NSTEPS)
+    parser.add_argument('--dt',            type=float, default=DEFAULT_DT)
+    parser.add_argument('--interval',      type=int,   default=DEFAULT_INTERVAL)
+    parser.add_argument('--verbose',       action='store_true')
     args = parser.parse_args()
 
     centers, radii = parse_sph(args.sph)
     os.makedirs(args.outdir, exist_ok=True)
-    vdir = os.path.join(args.outdir, 'vicinity_ligs')
+    vdir = os.path.join(args.outdir,'vicinity_ligs')
     os.makedirs(vdir, exist_ok=True)
 
-    pdbs = sorted(glob.glob(os.path.join(args.ligdir, '*.pdb')))
-    kept = []
+    pdbs = sorted(glob.glob(os.path.join(args.ligdir,'*.pdb')))
+    kept=[]
+
     for pdb in pdbs:
-        pts, elems = read_coords(pdb, args.keep_h)
+        pts, elems = read_coords(pdb,args.keep_h)
         cent       = pts.mean(axis=0) if pts.size else np.zeros(3)
         m          = compute_metrics(pts, elems, centers, radii)
-
-        # Filter by thresholds
-        if m[0] < args.frac_thresh or m[1] < args.depth_thresh:
+        if m[0]<args.frac_thresh or m[1]<args.depth_thresh:
             continue
 
-        # Compute ΔG with error handling
         try:
             dG, se = compute_binding_deltaG(
-                args.rec, pdb,
-                args.nsteps, args.dt,
-                args.interval, args.verbose
+                args.rec,pdb,args.nsteps,args.dt,args.interval,args.verbose
             )
         except OpenMMException as e:
             if args.verbose:
@@ -203,101 +201,95 @@ if __name__ == '__main__':
                 print(f"  • Skipping {os.path.basename(pdb)} due to error: {e}")
             continue
 
-        # Skip non-finite results
         if not np.isfinite(dG):
             if args.verbose:
-                print(f"  • Skipping {os.path.basename(pdb)}: ΔG is not finite")
+                print(f"  • Skipping {os.path.basename(pdb)}: ΔG not finite")
             continue
 
-        # Keep valid pose
-        lbl = to_label(len(kept) + 1)
+        lbl = to_label(len(kept)+1)
         if args.verbose:
-            print(f"{lbl}: {os.path.basename(pdb)} hydro_frac={m[6]:.3f} uniform_score={m[8]:.3f} ΔG={dG:.2f}±{se:.2f} kcal/mol")
+            print(f"{lbl}: {os.path.basename(pdb)} hydro_frac={m[6]:.3f} "
+                  f"uniform_score={m[8]:.3f} ΔG={dG:.2f}±{se:.2f}")
         shutil.copy(pdb, args.outdir)
-        kept.append((lbl, os.path.basename(pdb), *m, dG, se, cent))
+        kept.append((lbl,os.path.basename(pdb),*m,dG,se,cent))
 
     if not kept:
         print("No valid poses")
         exit()
 
-    # Compute ZUniform and build final list
     uniform_scores = np.array([e[10] for e in kept])
     zuni           = zscore(uniform_scores)
 
-    final = []
-    for idx, e in enumerate(kept):
-        lbl, name, frac, depth, score, wf, wd, ws, hydro, unif, uscore, dG, stderr, cent = e
-        final.append((lbl, name, frac, depth, score, wf, wd, ws, hydro, unif, uscore, zuni[idx], dG, stderr, cent))
+    final=[]
+    for idx,e in enumerate(kept):
+        lbl,name,frac,depth,score,wf,wd,ws,hydro,unif,uscore,dG,stderr,cent=e
+        final.append((lbl,name,frac,depth,score,wf,wd,ws,hydro,unif,uscore,zuni[idx],dG,stderr,cent))
 
-    best      = max(final, key=lambda x: x[11])
+    best      = max(final, key=lambda x:x[11])
     best_cent = best[14]
 
-    # Write CSV summary
-    out_csv = os.path.join(args.outdir, 'kept_ligs.csv')
-    with open(out_csv, 'w') as f:
-        headers = ['Idx','Name','Frac','Depth','Score','WFrac','WDepth','WScore','HydroFrac','Uniformity','UniformScore','ZUniform','ΔG_kcal_per_mol','StdErr']
-        f.write(','.join(headers) + "\n")
+    # Write CSV
+    out_csv=os.path.join(args.outdir,'kept_ligs.csv')
+    with open(out_csv,'w') as f:
+        headers=['Idx','Name','Frac','Depth','Score','WFrac','WDepth','WScore',
+                 'HydroFrac','Uniformity','UniformScore','ZUniform',
+                 'ΔG_kcal_per_mol','StdErr']
+        f.write(','.join(headers)+"\n")
         for e in final:
-            f.write(','.join(map(str, e[:14])) + "\n")
-        f.write('Best,' + ','.join(map(str, best[:14])) + "\n")
+            f.write(','.join(map(str,e[:14]))+"\n")
+        f.write('Best,'+','.join(map(str,best[:14]))+"\n")
 
     # Plot A
-    fig, ax = plt.subplots(figsize=(6,6))
-    sc = ax.scatter([e[2] for e in final], [e[3] for e in final], c=[e[11] for e in final], cmap='plasma', s=60, edgecolors='k')
-    ax.scatter(best[2], best[3], c='red', s=150, marker='*', label='Best')
-    for lbl, x, y in zip([e[0] for e in final], [e[2] for e in final], [e[3] for e in final]):
-        ax.annotate(lbl, (x,y), textcoords='offset points', xytext=(5,5), fontsize=9)
-    ax.set(xlabel='Frac', ylabel='Depth', title='Frac vs Depth')
-    fig.colorbar(sc, ax=ax, label='ZUniform')
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(os.path.join(args.outdir, 'A_frac_depth.png'))
+    fig,ax=plt.subplots(figsize=(6,6))
+    sc= ax.scatter([e[2] for e in final],[e[3] for e in final],
+                   c=[e[11] for e in final],cmap='plasma',s=60,edgecolors='k')
+    ax.scatter(best[2],best[3],c='red',s=150,marker='*',label='Best')
+    for lbl,x,y in zip([e[0] for e in final],[e[2] for e in final],[e[3] for e in final]):
+        ax.annotate(lbl,(x,y),xytext=(5,5),textcoords='offset points',fontsize=9)
+    ax.set(xlabel='Frac',ylabel='Depth',title='Frac vs Depth')
+    fig.colorbar(sc,ax=ax,label='ZUniform')
+    ax.legend();fig.tight_layout()
+    fig.savefig(os.path.join(args.outdir,'A_frac_depth.png'))
 
-        # Plot B
-    fig, ax = plt.subplots(figsize=(8,4))
-    ax.bar([e[0] for e in final], [e[10] for e in final], edgecolor='k')
-    ax.set(xlabel='Pose', ylabel='UniformScore', title='UniformScore per Pose')
-    fig.tight_layout()
-    fig.savefig(os.path.join(args.outdir, 'B_uniformscore_bar.png'))
+    # Plot B
+    fig,ax=plt.subplots(figsize=(8,4))
+    ax.bar([e[0] for e in final],[e[10] for e in final],edgecolor='k')
+    ax.set(xlabel='Pose',ylabel='UniformScore',title='UniformScore per Pose')
+    fig.tight_layout();fig.savefig(os.path.join(args.outdir,'B_uniformscore_bar.png'))
 
     # Plot C
-    scores = np.array([e[4] for e in final])
-    wscores = np.array([e[7] for e in final])
-    r_val, _ = pearsonr(scores, wscores)
-    fig, ax = plt.subplots(figsize=(6,6))
-    ax.scatter(scores, wscores, edgecolors='k')
-    ax.plot([scores.min(), scores.max()], [scores.min(), scores.max()], '--')
-    ax.set(xlabel='Score', ylabel='WScore', title=f'Score vs WScore (r={r_val:.2f})')
-    fig.tight_layout()
-    fig.savefig(os.path.join(args.outdir, 'C_score_vs_wscore.png'))
+    scores=np.array([e[4] for e in final])
+    wscores=np.array([e[7] for e in final])
+    r_val,_=pearsonr(scores,wscores)
+    fig,ax=plt.subplots(figsize=(6,6))
+    ax.scatter(scores,wscores,edgecolors='k')
+    ax.plot([scores.min(),scores.max()],[scores.min(),scores.max()],'--')
+    ax.set(xlabel='Score',ylabel='WScore',title=f'Score vs WScore (r={r_val:.2f})')
+    fig.tight_layout();fig.savefig(os.path.join(args.outdir,'C_score_vs_wscore.png'))
 
     # Plot D
-    zlabels = np.array([e[11] for e in final])
-    fig, ax = plt.subplots(figsize=(6,4))
-    ax.hist(zlabels, bins=10, edgecolor='k')
-    ax.set(xlabel='ZUniform', ylabel='Count', title='UniformScore Z-Score Distribution')
-    fig.tight_layout()
-    fig.savefig(os.path.join(args.outdir, 'D_zuniform_hist.png'))
+    zlabels=np.array([e[11] for e in final])
+    fig,ax=plt.subplots(figsize=(6,4))
+    ax.hist(zlabels,bins=10,edgecolor='k')
+    ax.set(xlabel='ZUniform',ylabel='Count',title='UniformScore Z-Score Distribution')
+    fig.tight_layout();fig.savefig(os.path.join(args.outdir,'D_zuniform_hist.png'))
 
     # Plot E
-    hydros = np.array([e[8] for e in final])
-    fig, ax = plt.subplots(figsize=(6,6))
-    sc2 = ax.scatter(scores, -np.array([e[12] for e in final]), s=hydros*200, c=zlabels, cmap='viridis', edgecolors='k')
-    ax.scatter(best[4], -best[12], c='red', s=150, marker='*', label='Best')
-    ax.set(xlabel='Score', ylabel='-ΔG (kcal/mol)', title='Score vs Binding Energy')
-    fig.colorbar(sc2, ax=ax, label='ZUniform')
-    fig.tight_layout()
-    fig.savefig(os.path.join(args.outdir, 'E_score_vs_dG.png'))
+    hydros=np.array([e[8] for e in final])
+    fig,ax=plt.subplots(figsize=(6,6))
+    sc2=ax.scatter(scores,-np.array([e[12] for e in final]),
+                   s=hydros*200,c=zlabels,cmap='viridis',edgecolors='k')
+    ax.scatter(best[4],-best[12],c='red',s=150,marker='*',label='Best')
+    ax.set(xlabel='Score',ylabel='-ΔG (kcal/mol)',title='Score vs Binding Energy')
+    fig.colorbar(sc2,ax=ax,label='ZUniform')
+    fig.tight_layout();fig.savefig(os.path.join(args.outdir,'E_score_vs_dG.png'))
 
     # Vicinity distances
-    with open(os.path.join(vdir, 'vicinity_ligs.log'), 'w') as vf:
-        vf.write('Idx,Name,Distance
-')
-        for lbl, name, *_ , cent in final:
-            dist = np.linalg.norm(np.array(cent) - best_cent)
-            vf.write(f"{lbl},{name},{dist:.3f}
-")
-        vf.write(f"Total,{len(final)}
-")
+    with open(os.path.join(vdir,'vicinity_ligs.log'),'w') as vf:
+        vf.write('Idx,Name,Distance\n')
+        for lbl,name,*,cent in final:
+            dist=np.linalg.norm(np.array(cent)-best_cent)
+            vf.write(f"{lbl},{name},{dist:.3f}\n")
+        vf.write(f"Total,{len(final)}\n")
 
     print(f"Done: {len(kept)} kept; best={best[0]} ZU={best[11]:.2f}")
