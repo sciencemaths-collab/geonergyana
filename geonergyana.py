@@ -35,27 +35,39 @@ from pdbfixer import PDBFixer
 from openmm.app import Modeller, ForceField, Simulation, NoCutoff, HBonds
 from openmm import unit, LangevinIntegrator, OpenMMException
 
-# ─── PARAMETERS ──────────────────────────────────────────────────────────
-# Load force-field XMLs from the same directory as this script
+# ─── LOCATE FORCE FIELD XML FILES ──────────────────────────────────────────
 try:
     SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 except NameError:
     SCRIPT_DIR = os.getcwd()
 
-FF_FILES      = [os.path.join(SCRIPT_DIR, fn)
-                 for fn in ('amber14-all.xml', 'gaff.xml')]
+_required_ff = ['amber14-all.xml', 'gaff.xml']
+FF_FILES = []
+for fn in _required_ff:
+    found = False
+    for d in (SCRIPT_DIR, os.getcwd()):
+        path = os.path.join(d, fn)
+        if os.path.isfile(path):
+            FF_FILES.append(path)
+            found = True
+            break
+    if not found:
+        raise FileNotFoundError(f"Force field file '{fn}' not found in {SCRIPT_DIR} or {os.getcwd()}")
 
-TEMPERATURE      = 300 * unit.kelvin
-FRICTION         = 1.0 / unit.picosecond
-DEFAULT_NSTEPS   = 2000
-DEFAULT_DT       = 0.001
-DEFAULT_INTERVAL = 100
-MINIM_STEPS      = 5000
-EQUIL_STEPS      = 10000
+# ─── SIMULATION PARAMETERS ──────────────────────────────────────────────────
+TEMPERATURE       = 300 * unit.kelvin
+FRICTION          = 1.0 / unit.picosecond
+DEFAULT_NSTEPS    = 2000
+DEFAULT_DT        = 0.001
+DEFAULT_INTERVAL  = 100
+MINIM_STEPS       = 5000
+EQUIL_STEPS       = 10000
 
-# ─── van der Waals radii (Å) ──────────────────────────────────────────────
-VdW_R = {'H':1.20,'C':1.70,'N':1.55,'O':1.52,'S':1.80,
-         'P':1.80,'F':1.47,'Cl':1.75,'Br':1.85,'I':1.98}
+# ─── van der Waals radii (Å) ────────────────────────────────────────────────
+VdW_R = {
+    'H':1.20,'C':1.70,'N':1.55,'O':1.52,'S':1.80,
+    'P':1.80,'F':1.47,'Cl':1.75,'Br':1.85,'I':1.98
+}
 
 # ─── ΔG ESTIMATION HELPERS ─────────────────────────────────────────────────
 def fix_and_protonate(pdb_path, verbose=False):
@@ -70,27 +82,28 @@ def fix_and_protonate(pdb_path, verbose=False):
 
 def build_gas_phase_system(topology):
     ff = ForceField(*FF_FILES)
-    return ff.createSystem(topology,
-                           nonbondedMethod=NoCutoff,
-                           constraints=HBonds,
-                           rigidWater=True)
+    return ff.createSystem(
+        topology,
+        nonbondedMethod=NoCutoff,
+        constraints=HBonds,
+        rigidWater=True
+    )
 
 def sample_energies(topology, positions, nsteps, dt, interval):
-    integrator = LangevinIntegrator(TEMPERATURE, FRICTION,
-                                    dt * unit.picoseconds)
-    system = build_gas_phase_system(topology)
-    sim    = Simulation(topology, system, integrator)
+    integrator = LangevinIntegrator(TEMPERATURE, FRICTION, dt * unit.picoseconds)
+    system     = build_gas_phase_system(topology)
+    sim        = Simulation(topology, system, integrator)
     sim.context.setPositions(positions)
     sim.minimizeEnergy(MINIM_STEPS)
     sim.context.setVelocitiesToTemperature(TEMPERATURE)
     sim.step(EQUIL_STEPS)
+
     energies = []
     for step in range(1, nsteps+1):
         sim.step(1)
         if step % interval == 0:
-            e = sim.context.getState(getEnergy=True)\
-                   .getPotentialEnergy()\
-                   .value_in_unit(unit.kilocalories_per_mole)
+            state = sim.context.getState(getEnergy=True)
+            e = state.getPotentialEnergy().value_in_unit(unit.kilocalories_per_mole)
             energies.append(e)
     return np.array(energies, dtype=float)
 
@@ -100,18 +113,23 @@ def compute_binding_deltaG(rec_pdb, lig_pdb, nsteps, dt, interval, verbose=False
     modeller = Modeller(topo_r, pos_r)
     modeller.add(topo_l, pos_l)
     topo_c, pos_c = modeller.topology, modeller.positions
+
     if verbose:
         print(f"  Sampling ΔG for {os.path.basename(lig_pdb)} …")
+
     E_c = sample_energies(topo_c, pos_c, nsteps, dt, interval)
     E_r = sample_energies(topo_r, pos_r, nsteps, dt, interval)
     E_l = sample_energies(topo_l, pos_l, nsteps, dt, interval)
+
     deltaG = E_c.mean() - E_r.mean() - E_l.mean()
-    stderr = np.sqrt(E_c.var(ddof=1)/len(E_c)
-                     + E_r.var(ddof=1)/len(E_r)
-                     + E_l.var(ddof=1)/len(E_l))
+    stderr = np.sqrt(
+        E_c.var(ddof=1)/len(E_c) +
+        E_r.var(ddof=1)/len(E_r) +
+        E_l.var(ddof=1)/len(E_l)
+    )
     return float(deltaG), float(stderr)
 
-# ─── SPHERE METRICS HELPERS ────────────────────────────────────────────────
+# ─── SPHERE‐BASED METRICS HELPERS ───────────────────────────────────────────
 def to_label(n):
     return chr(ord('A') + n - 1) if n <= 26 else f"Z{n-26}"
 
@@ -122,7 +140,7 @@ def parse_sph(path):
             parts = l.split()
             if len(parts) >= 5 and parts[0].isdigit():
                 x, y, z = map(float, parts[1:4])
-                r = float(parts[4])
+                r        = float(parts[4])
                 centers.append((x, y, z))
                 radii.append(r)
     return np.array(centers), np.array(radii)
@@ -133,13 +151,13 @@ def read_coords(path, keep_h=False):
         for l in f:
             if not l.startswith(('ATOM  ', 'HETATM')):
                 continue
-            e = l[76:78].strip().capitalize()
-            if not keep_h and e == 'H':
+            elem = l[76:78].strip().capitalize()
+            if not keep_h and elem == 'H':
                 continue
             try:
                 x, y, z = map(float, (l[30:38], l[38:46], l[46:54]))
                 pts.append((x, y, z))
-                elems.append(e)
+                elems.append(elem)
             except ValueError:
                 continue
     return np.array(pts), elems
@@ -150,20 +168,24 @@ def compute_metrics(pts, elems, centers, radii):
         return (0.0,) * 9
     d2     = np.sum((pts[:,None] - centers[None,:,:])**2, axis=2)
     inside = d2 <= radii[None]**2
+
     frac   = float(inside.sum(0).max() / N)
     depths = np.clip((radii[None] - np.sqrt(d2)) / radii[None], 0, 1)
     depth  = float(depths.max(1).mean())
     score  = frac * depth
+
     w      = np.array([VdW_R.get(e,1.5)**3 for e in elems])
     wfrac  = float((inside * w[:,None]).sum(0).max() / w.sum())
     wdepth = float((depths * w[:,None]).max(1).sum() / w.sum())
     wscore = wfrac * wdepth
-    bi      = int(inside.sum(0).argmax())
-    C       = np.array([e=='C' for e in elems])
-    hydro   = float((inside[:,bi] & C).sum() / max(C.sum(),1))
-    atom_d  = depths[:,bi]
-    uniform = float(max(0.0, 1 - atom_d.std()))
-    uscore  = score * uniform
+
+    bi       = int(inside.sum(0).argmax())
+    C        = np.array([e=='C' for e in elems])
+    hydro    = float((inside[:,bi] & C).sum() / max(C.sum(),1))
+    atom_d   = depths[:,bi]
+    uniform  = float(max(0.0, 1 - atom_d.std()))
+    uscore   = score * uniform
+
     return frac, depth, score, wfrac, wdepth, wscore, hydro, uniform, uscore
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────
@@ -174,11 +196,11 @@ if __name__ == '__main__':
     parser.add_argument('--ligdir',         required=True)
     parser.add_argument('--outdir',         required=True)
     parser.add_argument('--frac_thresh',    type=float, default=0.5,
-                        help="Minimum occupancy fraction (default 0.5)")
+                        help="Minimum occupancy fraction")
     parser.add_argument('--depth_thresh',   type=float, default=0.3,
-                        help="Minimum burial depth (default 0.3)")
+                        help="Minimum burial depth")
     parser.add_argument('--vicinity_radius',type=float, default=2.0,
-                        help="Å radius for vicinity log (default 2.0)")
+                        help="Å radius for vicinity logging")
     parser.add_argument('--keep_h',         action='store_true')
     parser.add_argument('--nsteps',         type=int,   default=DEFAULT_NSTEPS)
     parser.add_argument('--dt',             type=float, default=DEFAULT_DT)
@@ -198,13 +220,14 @@ if __name__ == '__main__':
         pts, elems = read_coords(pdb, args.keep_h)
         cent = pts.mean(axis=0) if pts.size else np.zeros(3)
         m    = compute_metrics(pts, elems, centers, radii)
+
         if m[0] < args.frac_thresh or m[1] < args.depth_thresh:
             continue
+
         try:
             dG, se = compute_binding_deltaG(
-                        args.rec, pdb,
-                        args.nsteps, args.dt,
-                        args.interval, args.verbose)
+                args.rec, pdb, args.nsteps, args.dt, args.interval, args.verbose
+            )
         except OpenMMException as e:
             if args.verbose:
                 print(f"  • Skipping {os.path.basename(pdb)} due to OpenMM error: {e}")
@@ -213,12 +236,13 @@ if __name__ == '__main__':
             if args.verbose:
                 print(f"  • Skipping {os.path.basename(pdb)} due to error: {e}")
             continue
+
         if not np.isfinite(dG):
             if args.verbose:
                 print(f"  • Skipping {os.path.basename(pdb)}: ΔG not finite")
             continue
 
-        lbl = to_label(len(kept)+1)
+        lbl = to_label(len(kept) + 1)
         if args.verbose:
             print(f"{lbl}: {os.path.basename(pdb)} hydro_frac={m[6]:.3f} "
                   f"uniform_score={m[8]:.3f} ΔG={dG:.2f}±{se:.2f}")
@@ -229,44 +253,49 @@ if __name__ == '__main__':
         print("No valid poses")
         exit()
 
-    # Compute Z-scores
+    # Compute Z-scores & assemble final list
     uniform_scores = np.array([e[10] for e in kept])
-    zuni = zscore(uniform_scores)
-
-    # Assemble final entries
+    zuni           = zscore(uniform_scores)
     final = []
-    for idx, e in enumerate(kept):
-        lbl, name, frac, depth, score, wf, wd, ws, hydro, unif, uscore, dG, stderr, cent = e
-        final.append((lbl, name, frac, depth, score, wf, wd, ws,
-                      hydro, unif, uscore, zuni[idx], dG, stderr, cent))
+    for idx, entry in enumerate(kept):
+        lbl, name, frac, depth, score, wfrac, wdepth, wscore, hydro, uniform, uscore, dG, stderr, cent = entry
+        final.append((lbl, name, frac, depth, score, wfrac, wdepth, wscore,
+                      hydro, uniform, uscore, zuni[idx], dG, stderr, cent))
 
-    # Identify best by ZUniform (index 11)
-    best = max(final, key=lambda x: x[11])
+    # Pick best by ZUniform (index 11)
+    best      = max(final, key=lambda x: x[11])
     best_cent = best[-1]
 
     # Write CSV
     out_csv = os.path.join(args.outdir, 'kept_ligs.csv')
     with open(out_csv, 'w') as f:
-        headers = ['Type','Idx','Name','Frac','Depth','Score','WFrac','WDepth',
-                   'WScore','HydroFrac','Uniformity','UniformScore','ZUniform',
-                   'ΔG_kcal_per_mol','StdErr']
+        headers = [
+            'Type','Idx','Name','Frac','Depth','Score','WFrac','WDepth',
+            'WScore','HydroFrac','Uniformity','UniformScore','ZUniform',
+            'ΔG_kcal_per_mol','StdErr'
+        ]
         f.write(','.join(headers) + "\n")
         for e in final:
-            f.write('Ligand,' + ','.join(map(str, e[:14])) + "\n")
-        f.write('Best,' + ','.join(map(str, best[:14])) + "\n")
+            f.write('Ligand,' + ','.join(map(str, e[0:14])) + "\n")
+        f.write('Best,' + ','.join(map(str, best[0:14])) + "\n")
 
-    # Plot A: Frac vs Depth colored by ZUniform
+    # ─── PLOTS A–E ──────────────────────────────────────────────────────────────
+    labels  = [e[0] for e in final]
+    scores  = np.array([e[4]  for e in final])
+    wscores = np.array([e[7]  for e in final])
+    hydros  = np.array([e[8]  for e in final])
+    zlabels = np.array([e[11] for e in final])
+
+    # Plot A: Frac vs Depth (colored by ZUniform)
     fig, ax = plt.subplots(figsize=(6,6))
-    sc = ax.scatter([e[2] for e in final],
-                    [e[3] for e in final],
-                    c=[e[11] for e in final],
-                    cmap='plasma', s=60, edgecolors='k')
+    sc = ax.scatter(
+        [e[2] for e in final],
+        [e[3] for e in final],
+        c=zlabels, cmap='plasma', s=60, edgecolors='k'
+    )
     ax.scatter(best[2], best[3], c='red', s=150, marker='*', label='Best')
-    for lbl, x, y in zip([e[0] for e in final],
-                         [e[2] for e in final],
-                         [e[3] for e in final]):
-        ax.annotate(lbl, (x, y), textcoords='offset points',
-                    xytext=(5,5), fontsize=9)
+    for lbl, x, y in zip(labels, [e[2] for e in final], [e[3] for e in final]):
+        ax.annotate(lbl, (x,y), textcoords='offset points', xytext=(5,5), fontsize=9)
     ax.set(xlabel='Frac', ylabel='Depth', title='Frac vs Depth')
     fig.colorbar(sc, ax=ax, label='ZUniform')
     plt.tight_layout()
@@ -274,48 +303,43 @@ if __name__ == '__main__':
 
     # Plot B: UniformScore per Pose
     fig, ax = plt.subplots(figsize=(8,4))
-    ax.bar([e[0] for e in final],
-           [e[11] for e in final], edgecolor='k')
-    ax.set(xlabel='Pose', ylabel='ZUniform', title='ZUniform per Pose')
+    ax.bar(labels, [e[10] for e in final], edgecolor='k')
+    ax.set(xlabel='Pose', ylabel='UniformScore', title='UniformScore per Pose')
     plt.tight_layout()
     fig.savefig(os.path.join(args.outdir, 'B_uniformscore_bar.png'))
 
     # Plot C: Score vs WScore
-    scores = np.array([e[4] for e in final])
-    wscores= np.array([e[7] for e in final])
-    r, _   = pearsonr(scores, wscores)
+    r_val, _ = pearsonr(scores, wscores)
     fig, ax = plt.subplots(figsize=(6,6))
     ax.scatter(scores, wscores, edgecolors='k')
-    ax.plot([scores.min(), scores.max()],
-            [scores.min(), scores.max()], '--')
-    ax.set(xlabel='Score', ylabel='WScore',
-           title=f'Score vs WScore (r={r:.2f})')
+    ax.plot([scores.min(), scores.max()], [scores.min(), scores.max()], '--')
+    ax.set(xlabel='Score', ylabel='WScore', title=f'Score vs WScore (r={r_val:.2f})')
     plt.tight_layout()
     fig.savefig(os.path.join(args.outdir, 'C_score_vs_wscore.png'))
 
-    # Plot D: ZUniform distribution
-    zs = np.array([e[11] for e in final])
+    # Plot D: ZUniform Distribution
     fig, ax = plt.subplots(figsize=(6,4))
-    ax.hist(zs, bins=10, edgecolor='k')
-    ax.set(xlabel='ZUniform', ylabel='Count',
-           title='ZUniform Distribution')
+    ax.hist(zlabels, bins=10, edgecolor='k')
+    ax.set(xlabel='ZUniform', ylabel='Count', title='ZUniform Distribution')
     plt.tight_layout()
     fig.savefig(os.path.join(args.outdir, 'D_zuniform_hist.png'))
 
-    # Plot E: Score vs -ΔG sized by hydro
-    hydros = np.array([e[8] for e in final])
+    # Plot E: Score vs –ΔG (size by hydro, color by ZUniform)
     fig, ax = plt.subplots(figsize=(6,6))
-    sc2 = ax.scatter(scores, -np.array([e[12] for e in final]),
-                     s=hydros*200, c=zs, cmap='viridis',
-                     edgecolors='k')
-    ax.scatter(best[4], -best[12], c='red', s=150,
-               marker='*', label='Best')
-    ax.set(xlabel='Score', ylabel='-ΔG',
-           title='Score vs -Binding Energy')
+    sc2 = ax.scatter(
+        scores,
+        -np.array([e[12] for e in final]),
+        s=hydros * 200,
+        c=zlabels,
+        cmap='viridis',
+        edgecolors='k'
+    )
+    ax.scatter(best[4], -best[12], c='red', s=150, marker='*', label='Best')
+    ax.set(xlabel='Score', ylabel='-ΔG (kcal/mol)', title='Score vs Binding Energy')
     plt.tight_layout()
     fig.savefig(os.path.join(args.outdir, 'E_score_vs_dG.png'))
 
-    # Vicinity log
+    # ─── VICINITY LOG ──────────────────────────────────────────────────────────
     with open(os.path.join(vdir, 'vicinity_ligs.log'), 'w') as vf:
         vf.write('Idx,Name,Distance\n')
         for lbl, name, *_, cent in final:
